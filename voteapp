@@ -1,0 +1,105 @@
+Voting App Assignment 1st Aug 2022
+
+1) Logged in as worker 54.169.189.72
+
+from the instructions tried first 3 points 
+
+[root@ip-172-31-21-239 kubernetes-training]# cd $home
+[root@ip-172-31-21-239 ~]# ls
+kubernetes-training
+[root@ip-172-31-21-239 ~]# git clone https://github.com/ashishrpandey/example-voting-app
+Cloning into 'example-voting-app'...
+remote: Enumerating objects: 494, done.
+remote: Total 494 (delta 0), reused 0 (delta 0), pack-reused 494
+Receiving objects: 100% (494/494), 236.17 KiB | 12.43 MiB/s, done.
+Resolving deltas: 100% (179/179), done.
+[root@ip-172-31-21-239 ~]# ls
+example-voting-app  kubernetes-training
+[root@ip-172-31-21-239 ~]# cd example-voting-app/k8s-specifications/
+
+###################################################
+
+2) observed before me , master node has created the pods so I have to edit the yaml file with a different app names to avoid clash.
+
+Instead created new namespace and pointed pods to this
+
+
+
+[root@ip-172-31-21-239 k8s-specifications]# kubectl get ns
+NAME              STATUS   AGE
+default           Active   4d23h
+kube-node-lease   Active   4d23h
+kube-public       Active   4d23h
+kube-system       Active   4d23h
+
+
+*** Create new namespace
+
+[root@ip-172-31-21-239 k8s-specifications]# kubectl create ns namespaceaslam
+
+
+namespace/namespaceaslam created
+[root@ip-172-31-21-239 k8s-specifications]# kubectl get ns
+NAME              STATUS   AGE
+default           Active   4d23h
+kube-node-lease   Active   4d23h
+kube-public       Active   4d23h
+kube-system       Active   4d23h
+namespaceaslam    Active   5s
+
+
+
+**** pointing to this new namespace 
+
+[root@ip-172-31-21-239 k8s-specifications]# kubectl config set-context --current --namespace=namespaceaslam
+Context "kubernetes-admin@kubernetes" modified
+
+[root@ip-172-31-21-239 k8s-specifications]# kubectl apply -f .
+deployment.apps/db1 created
+service/db1 created
+deployment.apps/redis1 created
+service/redis created
+deployment.apps/result1 created
+deployment.apps/vote1 created
+deployment.apps/worker1 created
+Error from server (Invalid): error when creating "result-service.yaml": Service "result1" is invalid: spec.ports[0].nodePort: Invalid value: 32000: provided port is already allocated
+Error from server (Invalid): error when creating "vote-service.yaml": Service "vote1" is invalid: spec.ports[0].nodePort: Invalid value: 32001: provided port is already allocated
+
+
+Now changed the Nodeport to 32005 and 32006 respectively
+
+[root@ip-172-31-21-239 k8s-specifications]# vi result-service.yaml
+[root@ip-172-31-21-239 k8s-specifications]# vi vote-service.yaml
+
+
+But then getting error on worker 
+
+[root@ip-172-31-21-239 k8s-specifications]# kubectl get po -n namespaceaslam
+NAME                       READY   STATUS             RESTARTS   AGE
+db1-5fcc666568-482p4       1/1     Running            0          3m19s
+redis1-8545797c8d-gft4m    1/1     Running            0          3m19s
+result1-67d49f59f8-md75x   1/1     Running            0          3m18s
+vote1-5cbdf458d8-fjxm6     1/1     Running            0          3m18s
+worker1-99df6b58b-mkfql    0/1     CrashLoopBackOff   4          3m18s
+
+
+[root@ip-172-31-21-239 k8s-specifications]# kubectl get po -n namespaceaslam
+NAME                       READY   STATUS    RESTARTS   AGE
+db1-5fcc666568-482p4       1/1     Running   0          3m35s
+redis1-8545797c8d-gft4m    1/1     Running   0          3m35s
+result1-67d49f59f8-md75x   1/1     Running   0          3m34s
+vote1-5cbdf458d8-fjxm6     1/1     Running   0          3m34s
+worker1-99df6b58b-mkfql    0/1     Error     5          3m34s
+
+
+
+
+#### Please note i tried without creating new namespace. Edited the yaml files and then tried kubectl appl -f . (here all pods got created)
+then deleted voting pod worker pod and db pod one-by-one. 
+
+observations :
+
+1) when voting pod deleted within seconds another pod came up there was no effect on vote app or result app
+2) when Worker pod deleted it was showing current pod terminating and new pod container creating .. later new pod came up. No effect for vote and result here as well . it was working as expected
+3) when db pod is deleted, another pod cameup like expected. vote application is working since it has no connection to db. but result though app is running there is no result shown as expected
+4)later we see there was a restart to worker pod 
